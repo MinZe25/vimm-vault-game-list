@@ -6,7 +6,7 @@ WORKDIR /app
 
 # Copy the current directory contents into the container
 COPY . /app
-
+RUN apt-get update && apt-get install -y curl
 # Install dependencies manually including gunicorn
 RUN pip install --no-cache-dir \
     Flask \
