@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wii Game Selector</title>
+    <style>
+        .import-export-container {
+            margin-top: 25px;
+            border-top: 1px solid #dddfe2;
+            padding-top: 20px;
+        }
+
+        .import-container {
+            margin-top: 15px;
+        }
+
+        #import-games-textarea {
+            width: calc(100% - 22px);
+            padding: 10px;
+            margin-bottom: 15px;
+            border: 1px solid #ccd0d5;
+            border-radius: 6px;
+            font-size: 16px;
+            min-height: 100px;
+            resize: vertical;
+            font-family: monospace;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f0f2f5;
+            color: #1c1e21;
+            display: flex;
+            justify-content: center;
+        }
+
+        .container {
+            background-color: #fff;
+            padding: 25px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1), 0 8px 16px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 800px;
+        }
+
+        h1, h2 {
+            color: #1c1e21;
+            border-bottom: 1px solid #dddfe2;
+            padding-bottom: 10px;
+            margin-top: 0;
+        }
+
+        h1 {
+            font-size: 24px;
+        }
+
+        h2 {
+            font-size: 20px;
+            margin-top: 25px;
+        }
+
+        input[type="text"] {
+            width: calc(100% - 22px);
+            padding: 10px;
+            margin-bottom: 15px;
+            border: 1px solid #ccd0d5;
+            border-radius: 6px;
+            font-size: 16px;
+        }
+
+        input[type="text"]:focus {
+            border-color: #1877f2;
+            box-shadow: 0 0 0 2px #e7f3ff;
+            outline: none;
+        }
+
+        #all-games-container {
+            max-height: 300px;
+            overflow-y: auto;
+            border: 1px solid #ccd0d5;
+            padding: 0;
+            margin-bottom: 25px;
+            border-radius: 6px;
+        }
+
+        #all-games-list {
+            list-style-type: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        #all-games-list li {
+            padding: 10px 12px;
+            cursor: pointer;
+            border-bottom: 1px solid #eee;
+            font-size: 15px;
+            transition: background-color 0.2s ease;
+        }
+
+        #all-games-list li:last-child {
+            border-bottom: none;
+        }
+
+        #all-games-list li:hover {
+            background-color: #f0f2f5;
+        }
+
+        #all-games-list li.selected {
+            background-color: #e7f3ff;
+            font-weight: 600;
+            color: #1877f2;
+        }
+
+        #all-games-list li.selected:hover {
+            background-color: #d0eaff;
+        }
+
+        #selected-games-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 25px;
+            font-size: 15px;
+        }
+
+        #selected-games-table th, #selected-games-table td {
+            border: 1px solid #ccd0d5;
+            padding: 10px 12px;
+            text-align: left;
+        }
+
+        #selected-games-table th {
+            background-color: #f5f6f7;
+            font-weight: 600;
+        }
+
+        #selected-games-table tbody tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+
+        #selected-games-table tbody tr:hover {
+            background-color: #f0f2f5;
+        }
+
+        button {
+            background-color: #1877f2;
+            color: white;
+            padding: 10px 18px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            transition: background-color 0.2s ease;
+            margin-bottom: 10px; /* Added margin for spacing */
+        }
+
+        button:hover {
+            background-color: #166fe5;
+        }
+
+        button:disabled {
+            background-color: #ccd0d5;
+            color: #8a8d91;
+            cursor: not-allowed;
+        }
+
+        .totals-row td {
+            font-weight: bold;
+            background-color: #f5f6f7 !important;
+        }
+
+        .loader {
+            border: 3px solid #f3f3f3;
+            border-radius: 50%;
+            border-top: 3px solid #1877f2;
+            width: 14px;
+            height: 14px;
+            animation: spin 0.8s linear infinite;
+            display: inline-block;
+            margin-left: 8px;
+            vertical-align: middle;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        .size-error {
+            color: #fa383e;
+            font-style: italic;
+        }
+
+        .size-fetching {
+            color: #1877f2;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>Wii Game Selector</h1>
+
+    <h2>Available Games (<span id="available-games-count">0</span>)</h2>
+    <input type="text" id="search-box" placeholder="Search for games...">
+    <div id="all-games-container">
+        <ul id="all-games-list"></ul>
+    </div>
+
+    <h2>Selected Games</h2>
+    <button id="fetch-sizes-btn" disabled>Fetch Sizes for Selected</button>
+    <table id="selected-games-table">
+        <thead>
+        <tr>
+            <th>Name</th>
+            <th>Size</th>
+        </tr>
+        </thead>
+        <tbody>
+        </tbody>
+        <tfoot>
+        <tr class="totals-row">
+            <td id="total-games">Total Games: 0</td>
+            <td id="total-size">Total Size: 0 Bytes</td>
+        </tr>
+        </tfoot>
+    </table>
+    <div class="import-export-container">
+        <h2>Import/Export Games</h2>
+
+        <!-- Export Button -->
+        <button id="export-games-btn">Export Selected Games</button>
+
+        <!-- Import Section -->
+        <div class="import-container">
+            <p>Import games from JSON:</p>
+            <textarea id="import-games-textarea" placeholder="Paste JSON data here..."></textarea>
+            <button id="import-games-btn">Import Games</button>
+        </div>
+    </div>
+
+</div>
+
+<script>
+    // const allGamesMasterData = {{ all_games_dict | tojson }};
+    const allGamesMasterData = {{all_games_dict | tojson | safe}}
+    const gameNamesSorted = Object.keys(allGamesMasterData).sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
+
+    let selectedGames = {}; // { "Game Name": { id: "game_id", size: null, fetching: false, error: null } }
+
+    const searchBox = document.getElementById('search-box');
+    const allGamesUl = document.getElementById('all-games-list');
+    const selectedGamesTbody = document.getElementById('selected-games-table').getElementsByTagName('tbody')[0];
+    const fetchSizesBtn = document.getElementById('fetch-sizes-btn');
+    const totalGamesTd = document.getElementById('total-games');
+    const totalSizeTd = document.getElementById('total-size');
+    const availableGamesCountSpan = document.getElementById('available-games-count');
+
+    function formatBytes(bytes, decimals = 2) {
+        if (bytes === null || typeof bytes === 'undefined' || isNaN(parseFloat(bytes)) || !isFinite(bytes)) return 'N/A';
+        if (bytes === 0) return '0 Bytes';
+        const k = 1024;
+        const dm = decimals < 0 ? 0 : decimals;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        if (i < 0 || i >= sizes.length) return 'N/A';
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+    }
+
+    function parseSizeToBytes(sizeStr) {
+        if (!sizeStr || typeof sizeStr !== 'string') return 0;
+        const sizeMatch = sizeStr.match(/([\d.]+)\s*(KB|MB|GB|TB|Bytes)/i);
+        if (!sizeMatch) return 0;
+
+        const value = parseFloat(sizeMatch[1]);
+        const unit = sizeMatch[2].toUpperCase();
+
+        if (isNaN(value)) return 0;
+
+        switch (unit) {
+            case 'BYTES':
+                return value;
+            case 'KB':
+                return value * 1024;
+            case 'MB':
+                return value * Math.pow(1024, 2);
+            case 'GB':
+                return value * Math.pow(1024, 3);
+            case 'TB':
+                return value * Math.pow(1024, 4);
+            default:
+                return 0;
+        }
+    }
+
+    function renderAllGamesList(filter = '') {
+        allGamesUl.innerHTML = '';
+        const normalizedFilter = filter.toLowerCase();
+        const filteredNames = gameNamesSorted.filter(name => name.toLowerCase().includes(normalizedFilter));
+
+        availableGamesCountSpan.textContent = filteredNames.length;
+
+        filteredNames.forEach(name => {
+            const gameId = allGamesMasterData[name];
+            const li = document.createElement('li');
+            li.textContent = name;
+            li.dataset.gameName = name;
+            li.dataset.gameId = gameId;
+            if (selectedGames[name]) {
+                li.classList.add('selected');
+            }
+            li.addEventListener('click', () => toggleGameSelection(name, gameId, li));
+            allGamesUl.appendChild(li);
+        });
+    }
+
+    function toggleGameSelection(gameName, gameId, liElement) {
+        if (selectedGames[gameName]) {
+            delete selectedGames[gameName];
+            if (liElement) liElement.classList.remove('selected');
+        } else {
+            selectedGames[gameName] = {id: gameId, size: null, fetching: false, error: null};
+            if (liElement) liElement.classList.add('selected');
+        }
+        renderAllGamesList(searchBox.value);
+        renderSelectedGamesTable();
+        updateTotals();
+        updateFetchSizesButtonState();
+    }
+
+    function renderSelectedGamesTable() {
+        selectedGamesTbody.innerHTML = '';
+
+        Object.keys(selectedGames).sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase())).forEach(gameName => {
+            const game = selectedGames[gameName];
+            const tr = selectedGamesTbody.insertRow();
+
+            const nameCell = tr.insertCell();
+            nameCell.textContent = gameName;
+
+            const sizeCell = tr.insertCell();
+            if (game.fetching) {
+                sizeCell.innerHTML = '<span class="size-fetching">Fetching<span class="loader"></span></span>';
+            } else if (game.error) {
+                sizeCell.innerHTML = `<span class="size-error">${game.error}</span>`;
+            } else if (game.size) {
+                sizeCell.textContent = game.size;
+            } else {
+                sizeCell.textContent = 'N/A';
+            }
+        });
+    }
+
+    function updateTotals() {
+        let totalGameCount = Object.keys(selectedGames).length;
+        let totalSizeBytes = 0;
+
+        Object.values(selectedGames).forEach(game => {
+            if (game.size && !game.error && !game.fetching) {
+                totalSizeBytes += parseSizeToBytes(game.size);
+            }
+        });
+
+        totalGamesTd.textContent = `Total Games: ${totalGameCount}`;
+        totalSizeTd.textContent = `Total Size: ${formatBytes(totalSizeBytes)}`;
+    }
+
+    async function fetchGameSizeAndUpdateState(gameName) {
+        const game = selectedGames[gameName];
+        if (!game || game.size || game.fetching || game.error) {
+            return;
+        }
+
+        game.fetching = true;
+        game.error = null;
+        renderSelectedGamesTable();
+        updateFetchSizesButtonState();
+
+        try {
+            const response = await fetch('/get_game_size', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({game_id: game.id})
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                console.error('Error fetching size for ' + gameName + ':', response.status, data);
+                game.error = data.error || `HTTP ${response.status}`;
+                game.size = null;
+            } else {
+                game.size = data.size || 'N/A';
+                if (game.size === "Not found" || game.size === "Error" || game.size === "Timeout") {
+                    game.error = game.size;
+                    game.size = null;
+                }
+            }
+        } catch (error) {
+            console.error('Network error fetching size for ' + gameName + ':', error);
+            game.error = 'Network Error';
+            game.size = null;
+        } finally {
+            game.fetching = false;
+            renderSelectedGamesTable();
+            updateTotals();
+            updateFetchSizesButtonState();
+        }
+    }
+
+    fetchSizesBtn.addEventListener('click', async () => {
+        const gamesToFetchNames = Object.keys(selectedGames).filter(name => {
+            const game = selectedGames[name];
+            return !game.size && !game.fetching && !game.error;
+        });
+
+        if (gamesToFetchNames.length === 0) return;
+
+        fetchSizesBtn.disabled = true;
+        fetchSizesBtn.innerHTML = 'Fetching... <span class="loader"></span>';
+
+        const fetchPromises = gamesToFetchNames.map(gameName => fetchGameSizeAndUpdateState(gameName));
+
+        try {
+            await Promise.all(fetchPromises);
+        } catch (error) {
+            console.error("Error during batch fetch operation:", error);
+        } finally {
+            updateFetchSizesButtonState();
+        }
+    });
+
+    function updateFetchSizesButtonState() {
+        const isAnyGameFetching = Object.values(selectedGames).some(game => game.fetching);
+        const areThereGamesToFetch = Object.values(selectedGames).some(game => !game.size && !game.fetching && !game.error);
+
+        if (isAnyGameFetching) {
+            fetchSizesBtn.disabled = true;
+            fetchSizesBtn.innerHTML = 'Fetching... <span class="loader"></span>';
+        } else if (areThereGamesToFetch) {
+            fetchSizesBtn.disabled = false;
+            fetchSizesBtn.textContent = 'Fetch Sizes for Selected';
+        } else {
+            fetchSizesBtn.disabled = true;
+            const allAttempted = Object.keys(selectedGames).length > 0 &&
+                Object.values(selectedGames).every(game => game.size || game.error);
+            if (Object.keys(selectedGames).length === 0) {
+                fetchSizesBtn.textContent = 'Fetch Sizes for Selected';
+                fetchSizesBtn.disabled = true;
+            } else if (allAttempted) {
+                fetchSizesBtn.textContent = 'Sizes Processed';
+            } else {
+                fetchSizesBtn.textContent = 'Fetch Sizes for Selected';
+            }
+        }
+    }
+
+    document.getElementById('export-games-btn').addEventListener('click', function () {
+        if (selectedGames.length === 0) {
+            alert('No games selected to export');
+            return;
+        }
+
+        const dataToExport = JSON.stringify(selectedGames, null, 2);
+
+        // Copy to clipboard
+        navigator.clipboard.writeText(dataToExport)
+            .then(() => {
+                alert('Selected games data copied to clipboard!');
+            })
+            .catch(err => {
+                console.error('Failed to copy: ', err);
+                alert('Failed to copy data to clipboard. Check console for error.');
+            });
+    });
+
+    // Import games from JSON
+    document.getElementById('import-games-btn').addEventListener('click', function () {
+        const jsonData = document.getElementById('import-games-textarea').value.trim();
+
+        if (!jsonData) {
+            alert('Please enter JSON data to import');
+            return;
+        }
+
+        try {
+            const importedGames = JSON.parse(jsonData);
+            selectedGames = [];
+
+            Object.keys(importedGames).forEach(key => {
+                selectedGames[key] = importedGames[key];
+                const gameElement = document.querySelector(`#all-games-list li[data-game-id="${importedGames[key].id}"]`);
+                if (gameElement) {
+                    gameElement.classList.add('selected');
+                }
+            });
+
+            // Clear textarea
+            document.getElementById('import-games-textarea').value = '';
+
+            alert(`Successfully imported ${importedGames.length} games`);
+            renderSelectedGamesTable();
+
+        } catch (error) {
+            alert(`Error importing games: ${error.message}`);
+        }
+    });
+
+    searchBox.addEventListener('input', (e) => {
+        renderAllGamesList(e.target.value);
+    });
+
+    // Initial render
+    renderAllGamesList();
+    renderSelectedGamesTable();
+    updateTotals();
+    updateFetchSizesButtonState();
+</script>
+</body>
+</html>

@@ -1,0 +1,24 @@
+version: '3.8'
+
+services:
+  web:
+    build: .
+#    ports: Not needed with NginxPM
+#      - "5000:5000"
+#    volumes:
+#      - .:/app
+    restart: unless-stopped
+    environment:
+      - FLASK_ENV=production
+      - PYTHONUNBUFFERED=1
+    # Optional: Add healthcheck
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+
+# Optional: If you need persistent data storage
+# volumes:
+#   data-volume:
