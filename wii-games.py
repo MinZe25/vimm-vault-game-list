@@ -108,7 +108,7 @@ def scrape_all_platform_games_from_vimm(platform="Wii"):
     Scrapes all Wii game names and their IDs from Vimm.net by iterating through letter pages.
     Returns a dictionary: {"Game Name": "Game ID"}
     """
-    base_url = "https://vimm.net/vault/?p=list&system={system}&section={section}"
+    base_url = "https://vimm.net/vault/?p=list&system={system}&section={section}&page={page}"
     all_games = {}
     headers = {
         # 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36 VimmScraper/1.0'
@@ -119,66 +119,75 @@ def scrape_all_platform_games_from_vimm(platform="Wii"):
     letters_and_num = list(string.ascii_uppercase) + ['number']
 
     for letter in letters_and_num:
-        page_url = base_url.format(system=platform, section=letter)
-        print(f"Scraping page: {page_url}")
+        next_page = True
+        page = 0
+        while next_page:
+            page += 1
+            page_url = base_url.format(system=platform, section=letter, page=page)
+            print(f"Scraping page: {page_url}")
 
-        try:
-            response = requests.get(page_url, headers=headers, timeout=20, verify=False)
-            response.raise_for_status()
-            soup = BeautifulSoup(response.content, 'html.parser')
+            try:
+                response = requests.get(page_url, headers=headers, timeout=20, verify=False)
+                response.raise_for_status()
+                soup = BeautifulSoup(response.content, 'html.parser')
 
-            # Find the main table containing games. This selector might need adjustment
-            # if Vimm's Lair changes its layout.
-            # Looking for <table class="rounded">, then <tr>, then <td> with an <a> tag.
-            # A more specific selector for game links:
-            # Games are usually in <td> elements that have an onclick attribute starting with "window.location="
-            # and contain an <a> tag with href like "/vault/xxxxx"
-            game_links = soup.select('td[onclick^="window.location="] a[href^="/vault/"]')
+                # Find the main table containing games. This selector might need adjustment
+                # if Vimm's Lair changes its layout.
+                # Looking for <table class="rounded">, then <tr>, then <td> with an <a> tag.
+                # A more specific selector for game links:
+                # Games are usually in <td> elements that have an onclick attribute starting with "window.location="
+                # and contain an <a> tag with href like "/vault/xxxxx"
+                game_links = soup.select('td a[href^="/vault/"]')
 
-            if not game_links:
-                logger.warning(f"No game links found on page: {page_url} with the current selector.")
-                # Fallback: try to find links directly within common table structures
-                # This is a broader search if the specific one fails
-                potential_tables = soup.find_all('table', class_='rounded')
-                for table in potential_tables:
-                    links_in_table = table.select('tr > td > a[href^="/vault/"]')
-                    for link in links_in_table:
-                        # Check if this link looks like a game link (has a numeric ID)
-                        href = link.get('href')
-                        game_id_part = href.split('/')[-1]
-                        if game_id_part.isdigit():
-                            game_links.append(link)  # Add to process
-                if game_links:  # Remove duplicates if any were added
-                    game_links = list(set(game_links))
+                if not game_links:
+                    next_page = False
+                    logger.warning(f"No game links found on page: {page_url} with the current selector.")
+                    # Fallback: try to find links directly within common table structures
+                    # This is a broader search if the specific one fails
+                    potential_tables = soup.find_all('table', class_='rounded')
+                    for table in potential_tables:
+                        links_in_table = table.select('tr > td > a[href^="/vault/"]')
+                        for link in links_in_table:
+                            # Check if this link looks like a game link (has a numeric ID)
+                            href = link.get('href')
+                            game_id_part = href.split('/')[-1]
+                            if game_id_part.isdigit():
+                                game_links.append(link)  # Add to process
+                    if game_links:  # Remove duplicates if any were added
+                        game_links = list(set(game_links))
 
-            for link in game_links:
-                game_name = link.get_text(strip=True)
-                href = link.get('href')
+                for link in game_links:
+                    game_name = link.get_text(strip=True)
+                    href = link.get('href')
 
-                if href and game_name:
-                    # Extract ID from href like "/vault/12345"
-                    parts = href.split('/')
-                    if len(parts) > 0 and parts[-1].isdigit():
-                        game_id = parts[-1]
-                        if game_name not in all_games:  # Avoid duplicates if a game is listed weirdly
-                            all_games[game_name] = game_id
-                            logger.info(f"Found: {game_name} - {game_id}")
+                    if href and game_name:
+                        # Extract ID from href like "/vault/12345"
+                        parts = href.split('/')
+                        if len(parts) > 0 and parts[-1].isdigit():
+                            game_id = parts[-1]
+                            if game_name not in all_games:  # Avoid duplicates if a game is listed weirdly
+                                all_games[game_name] = game_id
+                                logger.info(f"Found: {game_name} - {game_id}")
+                            # else:
+                            #     logger.info(f"Duplicate game name found and skipped: {game_name}")
                         # else:
-                        #     logger.info(f"Duplicate game name found and skipped: {game_name}")
-                    # else:
-                    #     logger.warning(f"Could not parse game ID from href: {href} for game: {game_name}")
+                        #     logger.warning(f"Could not parse game ID from href: {href} for game: {game_name}")
 
-            logger.info(f"Finished scraping {page_url}. Total games found so far: {len(all_games)}")
-            time.sleep(1)  # Be respectful to the server, wait 1 second between page loads
+                logger.info(f"Finished scraping {page_url}. Total games found so far: {len(all_games)}")
+                # time.sleep(0.3)  # Be respectful to the server, wait 1 second between page loads
 
-        except requests.exceptions.Timeout:
-            logger.error(f"Timeout when scraping page: {page_url}")
-        except requests.exceptions.HTTPError as http_err:
-            logger.error(f"HTTP error scraping page: {page_url} - {http_err}")
-        except requests.exceptions.RequestException as e:
-            logger.error(f"Request exception for page: {page_url} - {e}")
-        except Exception as e:
-            logger.error(f"An unexpected error occurred while scraping {page_url}: {e}")
+            except requests.exceptions.Timeout:
+                next_page = False
+                logger.error(f"Timeout when scraping page: {page_url}")
+            except requests.exceptions.HTTPError as http_err:
+                next_page = False
+                logger.error(f"HTTP error scraping page: {page_url} - {http_err}")
+            except requests.exceptions.RequestException as e:
+                next_page = False
+                logger.error(f"Request exception for page: {page_url} - {e}")
+            except Exception as e:
+                next_page = False
+                logger.error(f"An unexpected error occurred while scraping {page_url}: {e}")
 
     logger.info(f"Scraping complete. Total unique games found: {len(all_games)}")
     return all_games
@@ -202,7 +211,7 @@ def scrape_all_platform_games_from_vimm(platform="Wii"):
 # # To run the Flask app (if not using a dedicated WSGI server like Gunicorn for Colab):
 # # Note: Flask's built-in server is not for production.
 # # For Colab, you might need to expose the port using ngrok or similar if you want to access it externally.
-platforms = ["Wii", "GameCube", "PSP", "DS", "GBA", "N64", "PS2", "Xbox360"]
+platforms = ["DS", "GBA", "Wii", "GameCube", "N64", "PSP", "PS2", "PS1", "Xbox360"]
 
 if __name__ == '__main__':
     # Save scraped data to a JSON file
